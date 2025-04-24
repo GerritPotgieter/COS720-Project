@@ -28,19 +28,28 @@ python -m venv venv
 # Activate virtual environment
 Windows
 venv\Scripts\activate
+```
 
-### 3. Install dependancies
+If you are able to load in you will see a (venv) to the far left of your terminal
+
+### 3. Install dependencies
+```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install transformers datasets scikit-learn pandas tqdm
-
+```
 
 ### 4. Check GPU access (for faster training)
+```
 python scripts/check_gpu.py
+```
 
+On success it will indicate CUDA support and what GPU you are currently running.
 
 ### 5. Load base model
+```
 python scripts/load_model.py
-
+```
+The model will download and a message will appear indicating success upon loading.
 
 
 
