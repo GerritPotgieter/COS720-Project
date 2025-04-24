@@ -32,6 +32,7 @@ venv\Scripts\activate
 ### 3. Install dependancies
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install transformers datasets scikit-learn pandas tqdm
+pip install scikit-learn
 
 
 ### 4. Check GPU access (for faster training)
