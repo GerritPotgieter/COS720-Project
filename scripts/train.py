@@ -9,23 +9,24 @@ from tqdm import tqdm
 from sklearn.metrics import classification_report, accuracy_score, f1_score
 
 # Settings
-MODEL_NAME = "cybersectony/phishing-email-detection-distilbert_v2.4.1"
-DATA_PATH = "data/CEAS_08.csv"  # Change this if needed
+MODEL_NAME = "model/model1"
+DATA_PATH = "data/phishing_email.csv"  # Change this if needed
 BATCH_SIZE = 16
 EPOCHS = 3
 LEARNING_RATE = 2e-5
 
 # 1. Load Dataset
-# 1. Load Dataset
+
 df = pd.read_csv(DATA_PATH)
 df = df.dropna()
 
-# Optional: Clean weird newlines or stray quote marks
-df["body"] = df["body"].astype(str).str.replace(r"\s+", " ", regex=True)
-df["subject"] = df["subject"].astype(str).str.replace(r"\s+", " ", regex=True)
+# Used for CEAS dataset
+#df["body"] = df["body"].astype(str).str.replace(r"\s+", " ", regex=True)
+#df["subject"] = df["subject"].astype(str).str.replace(r"\s+", " ", regex=True)
+#df["text"] = df["subject"] + " " + df["body"]
 
-# Combine subject + body into a single input field
-df["text"] = df["subject"] + " " + df["body"]
+#use for Phishing dataset
+df["text"] = df["text_combined"].astype(str).str.replace(r"\s+", " ", regex=True)
 
 # Labels should be 0 or 1
 df["label"] = df["label"].astype(int)
@@ -130,8 +131,8 @@ for epoch in range(NUM_EPOCHS):
 
 
 # 7. Save Model (Optional)
-# model.save_pretrained("model/")
-# tokenizer.save_pretrained("model/")
+model.save_pretrained("model/model2")
+tokenizer.save_pretrained("model/model2")
 
 print("✅ Training complete and model saved!")
 

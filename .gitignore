@@ -1,2 +1,5 @@
 /venv
 /model
+data/phishing_email.csv
+.gitignore
+data/personal_emails.txt
