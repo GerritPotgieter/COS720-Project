@@ -3,3 +3,5 @@
 data/phishing_email.csv
 .gitignore
 data/personal_emails.txt
+data/Phishing_Email2.csv
+/data
