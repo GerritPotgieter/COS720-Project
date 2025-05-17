@@ -1,0 +1,14 @@
+Epoch 1 Validation Accuracy: 0.9961 | F1: 0.9962
+
+Epoch 2 Validation Accuracy: 0.9971 | F1: 0.9972
+Epoch 3 Validation Accuracy: 0.9980 | F1: 0.9980
+
+Final Test Accuracy: 0.9976 | F1: 0.9977
+              precision    recall  f1-score   support
+
+           0     0.9967    0.9985    0.9976      3891
+           1     0.9985    0.9968    0.9977      4075
+
+    accuracy                         0.9976      7966
+   macro avg     0.9976    0.9976    0.9976      7966
+weighted avg     0.9976    0.9976    0.9976      7966

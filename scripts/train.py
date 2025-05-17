@@ -7,47 +7,34 @@ from transformers import get_scheduler
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from sklearn.metrics import classification_report, accuracy_score, f1_score
+import os
 
-
-# Settings
-MODEL_NAME = "model/model1"
-DATA_PATH = "data/phishing_email.csv"  # Change this if needed
+MODEL_NAME = "cybersectony/phishing-email-detection-distilbert_v2.4.1"
+DATA_PATH = "data/processed_phishing_emails.csv"
 BATCH_SIZE = 16
 EPOCHS = 3
 LEARNING_RATE = 2e-5
+OUTPUT_DIR = "model/newmodel"
+LOG_FILE = os.path.join(OUTPUT_DIR, "training_log.txt")
 
-# 1. Load Dataset
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 df = pd.read_csv(DATA_PATH)
-df = df.dropna()
-
-# Used for CEAS dataset
-#df["body"] = df["body"].astype(str).str.replace(r"\s+", " ", regex=True)
-#df["subject"] = df["subject"].astype(str).str.replace(r"\s+", " ", regex=True)
-#df["text"] = df["subject"] + " " + df["body"]
-
-#use for Phishing dataset
-df["text"] = df["text_combined"].astype(str).str.replace(r"\s+", " ", regex=True)
-
-#labels should be 0 or 1, phishing or not phishing
+df = df.dropna(subset=["text_combined", "label"])
 df["label"] = df["label"].astype(int)
 
-#check that there is actually data inside
-print(df[["text", "label"]].head())
-
-
-train_texts, val_texts, train_labels, val_labels = train_test_split(
-    df["text"].tolist(), df["label"].tolist(), test_size=0.2
+train_texts, temp_texts, train_labels, temp_labels = train_test_split(
+    df["text_combined"].tolist(), df["label"].tolist(), test_size=0.2, stratify=df["label"], random_state=42
+)
+val_texts, test_texts, val_labels, test_labels = train_test_split(
+    temp_texts, temp_labels, test_size=0.5, stratify=temp_labels, random_state=42
 )
 
-#fetch tokenizer associated with model, in this case its for the DistilBERT model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
-#actual tokenization of the text
 train_encodings = tokenizer(train_texts, truncation=True, padding=True, max_length=512)
 val_encodings = tokenizer(val_texts, truncation=True, padding=True, max_length=512)
+test_encodings = tokenizer(test_texts, truncation=True, padding=True, max_length=512)
 
-# 3. PyTorch Dataset
 class EmailDataset(Dataset):
     def __init__(self, encodings, labels):
         self.encodings = encodings
@@ -63,99 +50,81 @@ class EmailDataset(Dataset):
 
 train_dataset = EmailDataset(train_encodings, train_labels)
 val_dataset = EmailDataset(val_encodings, val_labels)
+test_dataset = EmailDataset(test_encodings, test_labels)
 
-#Fetch our stored model from model filepath
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
 
-#Try and use GPU if available, else use CPU
-#Unsure what would happen if you have a AMD GPU, Uses OpenCL but no clue if it would work as well.
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 model.to(device)
 
-# AdamW optimizer
-# AdamW is a variant of the Adam optimizer that decouples weight decay from the optimization steps. (copilot explanation)
 optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
-#Loadsthe data and shuffles it
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True) #train data
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE) #validation data
-
-# Learning Rate Scheduler
 num_training_steps = EPOCHS * len(train_loader)
 lr_scheduler = get_scheduler(
     "linear", optimizer=optimizer, num_warmup_steps=0, num_training_steps=num_training_steps
 )
 
+with open(LOG_FILE, "w") as log:
+    model.train()
+    for epoch in range(EPOCHS):
+        loop = tqdm(train_loader, leave=True)
+        running_loss = 0
 
-# Train loop
-model.train()
-NUM_EPOCHS = 3
-for epoch in range(NUM_EPOCHS):
-    loop = tqdm(train_loader, leave=True)
-    running_loss = 0
+        for batch in loop:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            loss = outputs.loss
+            loss.backward()
 
-    for batch in loop:
-        batch = {k: v.to(device) for k, v in batch.items()}
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
 
-        outputs = model(**batch)
-        loss = outputs.loss
-        loss.backward()
+            running_loss += loss.item()
 
-        optimizer.step()
-        lr_scheduler.step()
-        optimizer.zero_grad()
+            loop.set_description(f"Epoch {epoch + 1}")
+            loop.set_postfix(loss=loss.item())
 
-        running_loss += loss.item()
+        model.eval()
+        val_preds, val_targets = [], []
+        with torch.no_grad():
+            for batch in val_loader:
+                batch = {k: v.to(device) for k, v in batch.items()}
+                outputs = model(**batch)
+                preds = torch.argmax(outputs.logits, dim=1)
+                val_preds.extend(preds.cpu().numpy())
+                val_targets.extend(batch["labels"].cpu().numpy())
 
-        loop.set_description(f"Epoch {epoch + 1}")
-        loop.set_postfix(loss=loss.item())
+        val_acc = accuracy_score(val_targets, val_preds)
+        val_f1 = f1_score(val_targets, val_preds)
+        val_report = classification_report(val_targets, val_preds, digits=4)
 
-    # validate after each epoch, if needed
+        print(f"\nEpoch {epoch + 1} Validation Accuracy: {val_acc:.4f} | F1: {val_f1:.4f}")
+        log.write(f"\nEpoch {epoch + 1}\nValidation Accuracy: {val_acc:.4f}\nF1 Score: {val_f1:.4f}\n{val_report}\n")
+        model.train()
+
     model.eval()
-    val_preds = []
-    val_targets = []
-
+    test_preds, test_targets = [], []
     with torch.no_grad():
-        for batch in val_loader:
+        for batch in test_loader:
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
             preds = torch.argmax(outputs.logits, dim=1)
+            test_preds.extend(preds.cpu().numpy())
+            test_targets.extend(batch["labels"].cpu().numpy())
 
-            val_preds.extend(preds.cpu().numpy())
-            val_targets.extend(batch["labels"].cpu().numpy())
+    test_acc = accuracy_score(test_targets, test_preds)
+    test_f1 = f1_score(test_targets, test_preds)
+    test_report = classification_report(test_targets, test_preds, digits=4)
 
-    # scores and eval
-    val_accuracy = accuracy_score(val_targets, val_preds)
-    val_f1 = f1_score(val_targets, val_preds)
+    print(f"\nFinal Test Accuracy: {test_acc:.4f} | F1: {test_f1:.4f}")
+    print(test_report)
+    log.write(f"\nFinal Test Results:\nAccuracy: {test_acc:.4f}\nF1 Score: {test_f1:.4f}\n{test_report}\n")
 
-    print(f" Epoch {epoch + 1} Results:")
-    print(f"   Loss: {running_loss / len(train_loader):.4f}")
-    print(f"   Accuracy: {val_accuracy:.4f}")
-    print(f"    F1 Score: {val_f1:.4f}\n")
+model.save_pretrained(OUTPUT_DIR)
+tokenizer.save_pretrained(OUTPUT_DIR)
 
-    model.train() 
-
-
-# Save trained model in local directory
-model.save_pretrained("model/model2")
-tokenizer.save_pretrained("model/model2")
-
-print("✅ Training complete and model saved!")
-
-model.eval()
-all_preds = []
-all_labels = []
-
-with torch.no_grad():
-    for batch in val_loader:
-        batch = {k: v.to(device) for k, v in batch.items()}
-        outputs = model(**batch)
-        logits = outputs.logits
-        preds = torch.argmax(logits, dim=1)
-        
-        all_preds.extend(preds.cpu().numpy())
-        all_labels.extend(batch["labels"].cpu().numpy())
-
-# Show report
-print("\n Classification Report:")
-print(classification_report(all_labels, all_preds, digits=4))
+print("Training complete and model saved.")

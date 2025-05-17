@@ -14,22 +14,12 @@
             <!-- Left Column (Input) -->
             <div class="col-md-6">
                 <form id="emailForm">
-                    <div class="mb-3">
-                        <label for="sender" class="form-label">Sender</label>
-                        <input type="text" id="sender" class="form-control" placeholder="e.g. noreply@secure-update.com">
-                    </div>
-                    <div class="mb-3">
-                        <label for="subject" class="form-label">Subject</label>
-                        <input type="text" id="subject" class="form-control" placeholder="e.g. Verify your account">
-                    </div>
+                  
                     <div class="mb-3">
                         <label for="body" class="form-label">Body</label>
                         <textarea id="body" class="form-control" rows="6" placeholder="Paste email body here..."></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label for="url" class="form-label">URL</label>
-                        <input type="text" id="url" class="form-control" placeholder="e.g. http://bit.ly/secure-login">
-                    </div>
+                
                     <button type="submit" class="btn btn-primary w-100">Analyze Email</button>
                 </form>
 
@@ -50,18 +40,14 @@
         document.getElementById('emailForm').onsubmit = async function(event) {
             event.preventDefault();
 
-            const sender = document.getElementById('sender').value;
-            const subject = document.getElementById('subject').value;
+         
             const body = document.getElementById('body').value;
-            const url = document.getElementById('url').value;
+           
 
             const response = await fetch('/predict', {
                 method: 'POST',
                 body: new URLSearchParams({
-                    'sender': sender,
-                    'subject': subject,
                     'body': body,
-                    'url': url
                 }),
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
