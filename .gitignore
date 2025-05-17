@@ -5,3 +5,5 @@ data/phishing_email.csv
 data/personal_emails.txt
 data/Phishing_Email2.csv
 /data
+/model_output
+
