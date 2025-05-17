@@ -73,9 +73,9 @@ def predict():
 
 
 
-    # --- Reasoning logic ---
+    #Reasoning logic
     reasoning = []
-    if re.search(r"(password|verify|login|urgent|click here|award|prize|Inheritance|beneficiary)", body, re.IGNORECASE):
+    if re.search(r"(password|verify|login|urgent|click here|award|prize|Inheritance|beneficiary|winner)", body, re.IGNORECASE):
         reasoning.append("Phishing-related language in body")
     if not reasoning:
         reasoning.append(" ")
